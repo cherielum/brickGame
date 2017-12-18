@@ -1,5 +1,5 @@
 var ballX = 75; //position of where ball starts off if not reset (75,57)
-var ballSpeedX = 5;
+var ballSpeedX = 7;
 var ballY = 75; 
 var ballSpeedY = 5;
 
@@ -7,8 +7,9 @@ const BRICK_W = 80;
 const BRICK_H = 20;
 const BRICK_GAP =2;
 const BRICK_COLS = 10;
-const BRICK_ROWS =14; 
+const BRICK_ROWS = 14;
 var brickGrid = new Array(BRICK_COLS * BRICK_ROWS); //how many total bricks we have
+var bricksLeft = 0;
 
 
 
@@ -34,12 +35,26 @@ function updateMousePos(event){
     // var mouseX = event.clientX; 
 
     paddleX = mouseX- PADDLE_WIDTH/2;
+
+    //Cheat or hack to test ball in any position
+    // ballX = mouseX; 
+    // ballY = mouseY;
+    // ballSpeedX = 4; //to the right
+    // ballSpeedY = -4; //up/down
 }
 
 function brickReset(){
-    for (var i=0; i<BRICK_COLS * BRICK_ROWS; i++) {
+    bricksLeft = 0; 
+    var i;
+    //for first 3 rows of brick columns set them to false
+    //for all the ones after that we're going to make them true
+    for (i=0;i < 3*BRICK_COLS; i++) {
+        brickGrid[i] = false;
+    }
+    for (;i<BRICK_COLS * BRICK_ROWS; i++) {
         // if(Math.random() <0.5){
             brickGrid[i] =true; 
+            bricksLeft++;
         // } else {
         //     brickGrid[i] = false; 
         // }// end of else (random check)
@@ -72,27 +87,41 @@ function ballReset() {
     ballY = canvas.height/2;
 }
 
-
-function moveAll() {
+function ballMove(){
     ballX += ballSpeedX;
     ballY += ballSpeedY;
 
-    if(ballX <0){ //left side
+    if(ballX <0 && ballSpeedX <0.0){ //left side
         ballSpeedX *= -1;
     }
 
-    if(ballX > canvas.width){//right side
+    if(ballX > canvas.width && ballSpeedX > 0.0){//right side
         ballSpeedX *= -1;
     }
 
-    if(ballY <0){ //top edge 
+    if(ballY <0  && ballSpeedY <0.0 ){ //top edge 
         ballSpeedY *= -1;
     }
 
     if(ballY > canvas.height){ //bottom 
         ballReset();
+        brickReset(); 
     }
+}
 
+function isBrickAtColRow(col, row){
+    var brickIndexUnderCoord = rowColToArrayIndex(col, row);
+    if (col >= 0 && col <BRICK_COLS &&
+        row >= 0 && row < BRICK_ROWS ) {
+        var brickIndexUnderCoord = rowColToArrayIndex(col, row);
+        return brickGrid[brickIndexUnderCoord];
+    } else {
+        return false; 
+    }
+    
+}
+
+function ballBrickHandling(){
     var ballBrickCol = Math.floor(ballX / BRICK_W);
     var ballBrickRow = Math.floor(ballY / BRICK_H);  
     var brickIndexUnderBall = rowColToArrayIndex(ballBrickCol, ballBrickRow);
@@ -103,13 +132,42 @@ function moveAll() {
         ballBrickCol >= 0 && ballBrickCol < BRICK_COLS &&
         ballBrickRow >= 0 && ballBrickRow <BRICK_ROWS) {
             
-            if(brickGrid[brickIndexUnderBall]){
+            if(isBrickAtColRow(ballBrickCol, ballBrickRow)){
                 brickGrid[brickIndexUnderBall] = false;
-                ballSpeedY *= -1;   
-            } 
-        }
+                bricksLeft--;
+                // console.log(bricksLeft);
 
-    
+                var prevBallX = ballX - ballSpeedX; 
+                var prevBallY = ballY - ballSpeedY; 
+                var prevBrickCol = Math.floor(prevBallX/ BRICK_W); //forumla bc we need a whole#
+                var prevBrickRow = Math.floor(prevBallY / BRICK_H);
+                
+                var bothTestsFailed = true; 
+
+                if (prevBrickCol != ballBrickCol){
+                    if(isBrickAtColRow(prevBrickCol, ballBrickRow) ==false) {
+                        ballSpeedX *= -1;   
+                        bothTestsFailed = false; 
+                    }
+                }
+                if (prevBrickRow != ballBrickRow){
+                    if(isBrickAtColRow(ballBrickCol, prevBrickRow) == false){
+                        ballSpeedY *= -1;   
+                        bothTestsFailed = false;
+                    }
+                }
+
+                if(bothTestsFailed) { //armpit case for blocks--prevents ball from going right through.
+                    ballSpeedX *= -1; 
+                    ballSpeedY *= -1;
+
+                }
+                
+            } //end of brick found
+        } // end of valid col and row
+} //end of ballBrickHandling function 
+
+function ballPaddleHandling(){
     var paddleTopEdgeY = canvas.height-PADDLE_DIST_FROM_EDGE; 
     var paddleBottomEdgeY = paddleTopEdgeY + PADDLE_THICKNESS; 
     var paddleLeftEdgeX = paddleX;
@@ -124,8 +182,16 @@ function moveAll() {
            var centerOfPaddleX = paddleX + PADDLE_WIDTH/2; 
            var ballDistFromPaddleCenterX = ballX - centerOfPaddleX;
            ballSpeedX = ballDistFromPaddleCenterX * 0.35; //between 0-1 to make it less steep
+           if(bricksLeft ==0){
+               brickReset();
+           }//out of bricks
+       }//ball center inside paddle
+} //end of ballPaddleHandling()
 
-       }
+function moveAll() {
+    ballMove(); // the ball is moving 
+    ballBrickHandling(); // handling ball brick collision
+    ballPaddleHandling(); //handling ball handling collision 
 }
 
 function rowColToArrayIndex(col, row) {
@@ -158,7 +224,7 @@ function drawBricks() {
 
             if(brickGrid[arrayIndex]){
                 colorRect(BRICK_W*eachCol,BRICK_H*eachRow, 
-                    BRICK_W-BRICK_GAP,BRICK_H-BRICK_GAP, 'blue');
+                    BRICK_W-BRICK_GAP,BRICK_H-BRICK_GAP, 'pink');
             } //end of is this brick here?
         } // end of for each brick
     } // end of for rows loop
